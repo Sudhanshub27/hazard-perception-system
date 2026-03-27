@@ -60,17 +60,67 @@ def compute_risk_score(detections: list[dict], frame_w: int, frame_h: int) -> fl
     Compute a frame-level risk score from 0–100.
 
     Args:
-        detections: list of detection dicts from inference.py
-        frame_w:    frame width in pixels
-        frame_h:    frame height in pixels
+        detections: list of detection dicts {"class_name": str, "bbox": [x1, y1, x2, y2]}
+        frame_w:    frame width in pixels (e.g., 640)
+        frame_h:    frame height in pixels (e.g., 640)
 
     Returns:
         float in [0.0, 100.0]
-
-    Full implementation in Phase 4.
     """
     if not detections:
         return 0.0
 
-    # Placeholder — returns 0 until Phase 4
-    return 0.0
+    frame_area = frame_w * frame_h
+    # The bottom-center coordinate of the frame (where the user's car hood is relative to the dashcam)
+    car_x = frame_w / 2.0
+    car_y = frame_h
+
+    total_score = 0.0
+
+    for det in detections:
+        class_name = det.get("class_name", "")
+        # Get base weight (default to 1.0 if unknown class)
+        base_weight = DANGER_WEIGHTS.get(class_name, 1.0)
+        
+        # Calculate BBox Area & Proximity
+        # ---------------------------------------------
+        # A larger box means the object is significantly closer to our car
+        [x1, y1, x2, y2] = det["bbox"]
+        box_area = (x2 - x1) * (y2 - y1)
+        proximity_ratio = box_area / frame_area  # scale of 0 to 1
+        
+        # If proximity is huge (> 40% of screen), cap the modifier to prevent runaway scores
+        proximity_modifier = min(proximity_ratio * 10.0, 4.0)
+        
+        # Calculate Position Risk (Euclidean Distance)
+        # ---------------------------------------------
+        # Objects directly in front of the car (bottom-center) are the highest risk.
+        # Objects far away in the top corners log lower risk.
+        obj_center_x = (x1 + x2) / 2.0
+        obj_center_y = (y1 + y2) / 2.0
+        
+        # Distance formula: sqrt(dx^2 + dy^2)
+        dist = ((obj_center_x - car_x)**2 + (obj_center_y - car_y)**2)**0.5
+        
+        # Max possible distance is from bottom-center to top-corner
+        max_dist = ((frame_w / 2.0)**2 + (frame_h)**2)**0.5
+        
+        # Invert distance so closer = higher score (0 to 1 multiplier)
+        # Using squared scaling so objects aggressively lose threat as they move away from the path
+        position_modifier = ((max_dist - dist) / max_dist)**2 
+        
+        # Final Object Score
+        # ---------------------------------------------
+        # Base threat * How close it is * Is it in our path?
+        # A pedestrian (10) taking up 10% screen space (1.0 mod) right in front (1.0 mod) = 10 pts
+        # A traffic sign (1) far away (-mod) = 0.1 pts
+        object_score = base_weight * (1.0 + proximity_modifier) * position_modifier
+        
+        total_score += object_score
+
+    # We aggressively scale up the final sum so a single highly-threatening object can trigger "Critical".
+    # And we clamp the absolute max to 100.0
+    final_score = min(total_score * 3.5, 100.0)
+    
+    return round(final_score, 1)
+
