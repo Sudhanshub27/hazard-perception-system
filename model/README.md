@@ -1,6 +1,6 @@
 # Model Service
 
-This service loads the YOLOv8 ONNX model and exposes a lightweight inference API.
+This service loads the YOLO26 ONNX model and exposes a lightweight inference API.
 
 ## Structure
 

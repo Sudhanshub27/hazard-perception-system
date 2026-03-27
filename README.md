@@ -1,12 +1,12 @@
 # Autonomous Hazard Perception System
 
-> Real-time road hazard detection and risk scoring powered by YOLOv8 — built for dashcam video streams.
+> Real-time road hazard detection and risk scoring powered by YOLO26 — built for dashcam video streams.
 
 <!-- Badges will be added after deployment -->
 ![Python](https://img.shields.io/badge/Python-3.11-blue)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.111-green)
 ![Next.js](https://img.shields.io/badge/Next.js-14-black)
-![YOLOv8](https://img.shields.io/badge/YOLOv8-Ultralytics-red)
+![YOLO26](https://img.shields.io/badge/YOLO26-Ultralytics-red)
 ![Docker](https://img.shields.io/badge/Docker-Compose-blue)
 
 ---
@@ -39,7 +39,7 @@
 ┌──────────────────────────▼──────────────────────────────────┐
 │                   Model Service                             │
 │                     (port 8001)                             │
-│            YOLOv8 ONNX Runtime Inference                    │
+│            YOLO26 ONNX Runtime Inference                    │
 │            BDD100K Fine-tuned (10 classes)                  │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -50,7 +50,7 @@
 
 | Layer | Technology |
 |---|---|
-| Object Detection | YOLOv8n/s (Ultralytics) → ONNX Runtime |
+| Object Detection | YOLO26n/s (Ultralytics) → ONNX Runtime |
 | Dataset | BDD100K (100K dashcam frames, 10 classes) |
 | Backend | FastAPI + WebSocket |
 | Frontend | Next.js 14, Tailwind CSS |
@@ -117,7 +117,7 @@ cd frontend && npm install && npm run dev
 
 ```
 hazard-perception/
-├── model/              # YOLOv8 inference service
+├── model/              # YOLO26 inference service
 │   ├── src/            # FastAPI inference app
 │   ├── configs/        # Dataset YAML configs
 │   └── weights/        # .onnx files (gitignored, mount via volume)
@@ -143,7 +143,7 @@ hazard-perception/
 
 - **Dataset**: BDD100K — 80K train / 10K val / 10K test
 - **Classes**: car, truck, bus, person, rider, bicycle, motorcycle, traffic light, traffic sign, train  
-- **Training**: YOLOv8n/s, 50–100 epochs, RTX 4050, early stopping
+- **Training**: YOLO26n/s, 50–100 epochs, RTX 4050, early stopping
 - **Export**: ONNX opset 17 for ONNX Runtime serving
 
 ---

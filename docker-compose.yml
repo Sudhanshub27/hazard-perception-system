@@ -4,7 +4,7 @@ version: "3.9"
 # Autonomous Hazard Perception System — Docker Compose
 #
 # Services:
-#   model    → YOLOv8 ONNX inference server (port 8001)
+#   model    → YOLO26 ONNX inference server (port 8001)
 #   api      → FastAPI backend + WebSocket (port 8000)
 #   frontend → Next.js dashboard (port 3000)
 #
@@ -16,7 +16,7 @@ version: "3.9"
 services:
   # ----------------------------------------------------------
   # MODEL SERVICE
-  # Runs the YOLOv8 ONNX model for inference.
+  # Runs the YOLO26 ONNX model for inference.
   # Separated from the API so it can be scaled independently
   # or replaced with a GPU-optimized container.
   # ----------------------------------------------------------
