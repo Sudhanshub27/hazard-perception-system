@@ -1,0 +1,22 @@
+# ============================================================
+# Model Service Dependencies
+# Pin exact versions to ensure reproducible Docker builds.
+# ============================================================
+
+# Web framework for inference API
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+
+# ONNX Runtime — CPU version for serving
+# Switch to onnxruntime-gpu==1.18.0 if your deployment has CUDA
+onnxruntime==1.18.0
+
+# Image processing
+opencv-python-headless==4.9.0.80   # headless = no GUI, required in Docker
+numpy==1.26.4
+Pillow==10.3.0
+
+# Utilities
+python-multipart==0.0.9            # for file upload endpoints
+pydantic==2.7.1
+httpx==0.27.0                      # async HTTP client (health checks)

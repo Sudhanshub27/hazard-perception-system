@@ -1,0 +1,26 @@
+# ============================================================
+# API Service Dependencies
+# ============================================================
+
+# Web framework + WebSocket support
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+websockets==12.0
+
+# Video/image processing
+opencv-python-headless==4.9.0.80
+numpy==1.26.4
+
+# HTTP client to call model service
+httpx==0.27.0
+
+# Data validation and serialization
+pydantic==2.7.1
+python-multipart==0.0.9
+
+# Database for hazard event log (SQLite via async SQLAlchemy)
+sqlalchemy==2.0.30
+aiosqlite==0.20.0
+
+# Background tasks / async queue
+anyio==4.3.0

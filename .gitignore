@@ -1,0 +1,160 @@
+# ============================================================
+# Python
+# ============================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+*.mo
+*.pot
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+instance/
+.webassets-cache
+.scrapy
+docs/_build/
+.pybuilder/
+target/
+.ipynb_checkpoints
+profile_default/
+ipython_config.py
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.spyderproject.db
+.spyproject
+.ropeproject
+/site
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+
+# ============================================================
+# Node.js / Next.js
+# ============================================================
+node_modules/
+.pnp
+.pnp.js
+.next/
+out/
+.nuxt
+dist/
+.cache/
+.parcel-cache
+.docusaurus
+.serverless/
+.fusebox/
+.dynamodb/
+.tern-port
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.eslintcache
+.stylelintcache
+
+# ============================================================
+# ML Model Artifacts (never commit large binary files)
+# ============================================================
+*.pt
+*.pth
+*.onnx
+*.weights
+*.h5
+*.pkl
+*.bin
+runs/
+weights/
+model/weights/
+*.mlmodel
+
+# Use Git LFS or S3 for these — see README
+
+# ============================================================
+# Dataset Files
+# ============================================================
+data/raw/
+data/processed/
+*.zip
+*.tar.gz
+*.tar
+
+# ============================================================
+# Docker & Environment
+# ============================================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ============================================================
+# IDE & OS
+# ============================================================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ============================================================
+# Results & Logs (commit curated results, not raw logs)
+# ============================================================
+logs/
+*.log
+results/raw/
