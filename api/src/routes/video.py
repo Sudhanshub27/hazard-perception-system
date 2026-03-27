@@ -1,38 +1,39 @@
 """
-Video Upload Route — Phase 1 Stub
-Full implementation in Phase 5.
+Video Upload Endpoint
+Receives MP4/AVI videos from the UI and caches them on disk for processing.
 """
-from fastapi import APIRouter, UploadFile, File, HTTPException
-from ..models.schemas import UploadResponse
-import uuid, os
+from fastapi import APIRouter, UploadFile, File
+import os
+import aiofiles
+import uuid
 
-router = APIRouter(prefix="/video", tags=["video"])
+router = APIRouter(prefix="/video", tags=["upload"])
 
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "/app/uploads")
+# For local Windows development without Docker
+if not os.path.exists(UPLOAD_DIR) and not UPLOAD_DIR.startswith("/app"):
+    UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-
-@router.post("/upload", response_model=UploadResponse)
+@router.post("/upload")
 async def upload_video(file: UploadFile = File(...)):
     """
-    Accept a dashcam video file and save it for processing.
-    Supported formats: .mp4, .avi, .mov, .mkv
-
-    Phase 5: triggers background processing task after saving.
+    Saves the incoming video and returns a unique ID.
+    The frontend will use this ID to connect the WebSocket stream.
     """
-    allowed_types = {"video/mp4", "video/avi", "video/quicktime", "video/x-matroska"}
-    if file.content_type not in allowed_types:
-        raise HTTPException(status_code=400, detail=f"Unsupported file type: {file.content_type}")
-
-    video_id = str(uuid.uuid4())
-    save_path = os.path.join(UPLOAD_DIR, f"{video_id}_{file.filename}")
-
-    contents = await file.read()
-    os.makedirs(UPLOAD_DIR, exist_ok=True)
-    with open(save_path, "wb") as f:
-        f.write(contents)
-
-    return UploadResponse(
-        video_id=video_id,
-        filename=file.filename,
-        size_bytes=len(contents),
-    )
+    if not file.filename.lower().endswith(('.mp4', '.avi', '.move')):
+        return {"error": "Unsupported file type. Use MP4 or AVI."}
+        
+    # Generate unique ID to prevent collisions
+    video_id = str(uuid.uuid4())[:8]
+    extension = file.filename.split('.')[-1]
+    safe_filename = f"{video_id}.{extension}"
+    
+    file_path = os.path.join(UPLOAD_DIR, safe_filename)
+    
+    # Save file asynchronously
+    async with aiofiles.open(file_path, 'wb') as out_file:
+        while content := await file.read(1024 * 1024):  # Read in 1MB chunks
+            await out_file.write(content)
+            
+    return {"status": "success", "video_id": video_id, "filename": file.filename}

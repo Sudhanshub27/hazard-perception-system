@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: theme('colors.obsidian');
+    color: white;
+    /* Deep cinematic radial gradient to give depth to the backend */
+    background-image: radial-gradient(circle at 50% 10%, rgba(15, 244, 198, 0.05) 0%, theme('colors.obsidian') 60%);
+    min-height: 100vh;
+  }
+}
+
+@layer utilities {
+  .glass-panel {
+    @apply bg-glassWhite backdrop-blur-md border border-glassBorder rounded-2xl shadow-neon;
+  }
+  
+  .glass-danger {
+    @apply bg-[rgba(255,51,102,0.05)] border-[rgba(255,51,102,0.3)] shadow-neon-danger;
+  }
+}
+
+/* Custom WebKit Scrollbar to fit theme */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
