@@ -1,11 +1,12 @@
+import { memo } from "react";
 import { motion } from "framer-motion";
 
-export default function RiskGauge({ score }: { score: number }) {
+const RiskGauge = memo(({ score }: { score: number }) => {
   const isCritical = score >= 80;
   const isDanger = score >= 50 && score < 80;
   const strokeColor = isCritical ? "#FF3366" : isDanger ? "#FFCC00" : "#0FF4C6";
   
-  // Array of 20 ticks for the circular gauge
+  // Array of 24 ticks for the circular gauge
   const ticks = Array.from({ length: 24 });
 
   return (
@@ -64,4 +65,7 @@ export default function RiskGauge({ score }: { score: number }) {
       </div>
     </div>
   );
-}
+});
+
+RiskGauge.displayName = "RiskGauge";
+export default RiskGauge;

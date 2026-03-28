@@ -120,8 +120,10 @@ model/weights/
 # ============================================================
 # Dataset Files
 # ============================================================
-data/raw/
-data/processed/
+data/
+bdd100k/
+bdd100k_labels_release/
+bdd100k_seg/
 *.zip
 *.tar.gz
 *.tar
