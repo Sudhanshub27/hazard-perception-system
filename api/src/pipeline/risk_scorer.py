@@ -58,20 +58,13 @@ def classify_risk(score: float) -> str:
 def compute_risk_score(detections: list[dict], frame_w: int, frame_h: int) -> float:
     """
     Compute a frame-level risk score from 0–100.
-
-    Args:
-        detections: list of detection dicts {"class_name": str, "bbox": [x1, y1, x2, y2]}
-        frame_w:    frame width in pixels (e.g., 640)
-        frame_h:    frame height in pixels (e.g., 640)
-
-    Returns:
-        float in [0.0, 100.0]
+    Calculates deterministic collision risk using spatial overlap and class threat level.
     """
     if not detections:
         return 0.0
 
     frame_area = frame_w * frame_h
-    # The bottom-center coordinate of the frame (where the user's car hood is relative to the dashcam)
+    # The car is at the bottom center of the camera FOV
     car_x = frame_w / 2.0
     car_y = frame_h
 
@@ -84,43 +77,40 @@ def compute_risk_score(detections: list[dict], frame_w: int, frame_h: int) -> fl
         
         # Calculate BBox Area & Proximity
         # ---------------------------------------------
-        # A larger box means the object is significantly closer to our car
+        # A larger box means the object is closer to the dashcam
         [x1, y1, x2, y2] = det["bbox"]
-        box_area = (x2 - x1) * (y2 - y1)
-        proximity_ratio = box_area / frame_area  # scale of 0 to 1
+        box_area = (max(0, x2 - x1)) * (max(0, y2 - y1))
+        proximity_ratio = box_area / frame_area
         
-        # If proximity is huge (> 40% of screen), cap the modifier to prevent runaway scores
-        proximity_modifier = min(proximity_ratio * 10.0, 4.0)
+        # Proximity modifier limits runaway but heavily penalizes anything eating >15% field of view.
+        # Logarithmic-like scaling using root for smooth rapid approach warning
+        proximity_modifier = min((proximity_ratio**0.5) * 8.0, 5.0) 
         
-        # Calculate Position Risk (Euclidean Distance)
+        # Calculate Position Risk (Euclidean Distance & Trajectory Overlap)
         # ---------------------------------------------
-        # Objects directly in front of the car (bottom-center) are the highest risk.
-        # Objects far away in the top corners log lower risk.
         obj_center_x = (x1 + x2) / 2.0
-        obj_center_y = (y1 + y2) / 2.0
+        obj_bottom_y = y2 # Use the bottom of the bounding box as the physical contact point
         
-        # Distance formula: sqrt(dx^2 + dy^2)
-        dist = ((obj_center_x - car_x)**2 + (obj_center_y - car_y)**2)**0.5
-        
-        # Max possible distance is from bottom-center to top-corner
+        dist = ((obj_center_x - car_x)**2 + (obj_bottom_y - car_y)**2)**0.5
         max_dist = ((frame_w / 2.0)**2 + (frame_h)**2)**0.5
         
-        # Invert distance so closer = higher score (0 to 1 multiplier)
-        # Using squared scaling so objects aggressively lose threat as they move away from the path
+        # Invert distance: 1.0 = right in front, 0.0 = top corner
         position_modifier = ((max_dist - dist) / max_dist)**2 
+
+        # Trajectory multiplier: If the object's x-center is within the middle 30% of the screen, multiply the threat.
+        x_center_ratio = abs(obj_center_x - car_x) / frame_w
+        trajectory_mult = 1.8 if x_center_ratio < 0.15 else 1.0
         
         # Final Object Score
-        # ---------------------------------------------
-        # Base threat * How close it is * Is it in our path?
-        # A pedestrian (10) taking up 10% screen space (1.0 mod) right in front (1.0 mod) = 10 pts
-        # A traffic sign (1) far away (-mod) = 0.1 pts
-        object_score = base_weight * (1.0 + proximity_modifier) * position_modifier
+        object_score = base_weight * (1.0 + proximity_modifier) * position_modifier * trajectory_mult
         
         total_score += object_score
 
-    # We aggressively scale up the final sum so a single highly-threatening object can trigger "Critical".
-    # And we clamp the absolute max to 100.0
-    final_score = min(total_score * 3.5, 100.0)
+    # Compute bounding saturation curve to naturally clamp the total to 100.0 without a hard plateau
+    # Using a soft asymptotic approach: max - max * e^(-x)
+    max_cap = 100.0
+    # The coefficient `0.04` maps a raw total of ~40 to produce a ~80 (Critical) score.
+    normalized_score = max_cap * (1.0 - __import__('math').exp(-0.04 * total_score))
     
-    return round(final_score, 1)
+    return min(round(normalized_score, 1), 100.0)
 

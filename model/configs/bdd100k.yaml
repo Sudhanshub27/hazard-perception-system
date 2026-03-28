@@ -7,7 +7,7 @@
 # ============================================================
 
 # Root path to dataset (absolute path or relative to this file)
-path: ../../data/processed/bdd100k_yolo
+path: C:\Users\Sudhanshu\projects\yolo\data\processed\bdd100k_yolo
 
 # Relative paths within 'path' above
 train: images/train

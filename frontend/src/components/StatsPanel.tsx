@@ -1,60 +1,62 @@
+"use client";
+
 import { memo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { TrendingUp, Maximize, Target, Activity } from "lucide-react";
+import { Activity, Car, HardHat, AlertCircle } from "lucide-react";
+import { motion } from "framer-motion";
 
-interface StatsPanelProps {
-  maxRisk: number;
-  avgRisk: number;
-  totalDetections: number;
-}
-
-const StatsPanel = memo(({ maxRisk, avgRisk, totalDetections }: StatsPanelProps) => {
+const StatsPanel = memo(({ objects }: { objects: any[] }) => {
+  const peopleCount = objects.filter((d: any) => ['person', 'rider'].includes(d.class_name)).length;
+  const vehicleCount = objects.filter((d: any) => ['car', 'truck', 'bus', 'motorcycle'].includes(d.class_name)).length;
+  
   return (
-    <div className="glass-panel p-4 flex flex-col space-y-4">
-      {/* Onboarding Label Overlay */}
-      <div className="flex items-center space-x-2 border-b border-glassBorder pb-2">
-        <Activity className="w-3 h-3 text-gray-500" />
-        <h3 className="text-[9px] uppercase tracking-[0.2em] font-bold text-gray-500">
-          Session Intelligence
-        </h3>
+    <div className="h-full flex flex-col bg-transparent">
+      
+      {/* Soft Header */}
+      <div className="px-5 py-4 border-b border-borderSubtle flex items-center justify-between">
+         <div className="flex items-center space-x-2">
+           <Activity className="w-4 h-4 text-textMuted" />
+           <span className="text-sm font-semibold text-white tracking-tight">Active Matrix</span>
+         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3">
-        {/* Peak Risk */}
-        <div className="flex flex-col">
-          <span className="text-[9px] uppercase tracking-wider text-gray-500 mb-1">Peak Threat Level</span>
-          <div className="flex items-end space-x-2">
-            <span className={`text-2xl font-mono font-bold ${maxRisk > 80 ? 'text-neonRed animate-pulse' : 'text-white'}`}>
-              {maxRisk.toFixed(1)}%
-            </span>
-          </div>
+      <div className="flex-1 p-5 flex flex-col justify-center space-y-3">
+        
+        <motion.div 
+           whileHover={{ scale: 1.02 }} 
+           className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 transition-colors hover:bg-white/10"
+        >
+           <div className="flex items-center space-x-3">
+             <div className="p-1.5 bg-sysAccent/10 rounded-lg">
+               <Car className="w-4 h-4 text-sysAccent" />
+             </div>
+             <span className="text-sm font-medium text-gray-200 tracking-tight">Vehicular Targets</span>
+           </div>
+           <span className="text-lg font-mono font-bold text-white">{vehicleCount}</span>
+        </motion.div>
+
+        <motion.div 
+           whileHover={{ scale: 1.02 }} 
+           className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 transition-colors hover:bg-white/10"
+        >
+           <div className="flex items-center space-x-3">
+             <div className="p-1.5 bg-alertWarn/10 rounded-lg">
+               <HardHat className="w-4 h-4 text-alertWarn" />
+             </div>
+             <span className="text-sm font-medium text-gray-200 tracking-tight">Pedestrian Assets</span>
+           </div>
+           <span className="text-lg font-mono font-bold text-white">{peopleCount}</span>
+        </motion.div>
+
+        {/* Global Track */}
+        <div className="pt-2 flex items-center justify-between border-t border-borderSubtle mt-1 opacity-80">
+           <span className="text-xs font-semibold text-textMuted uppercase tracking-wider">Total Output</span>
+           <span className="text-sm font-bold text-gray-300">
+             {objects.length} Entities
+           </span>
         </div>
 
-        {/* Total Objects Identified */}
-        <div className="flex flex-col">
-          <span className="text-[9px] uppercase tracking-wider text-gray-500 mb-1">Detections Logged</span>
-          <div className="flex items-end space-x-2">
-            <span className="text-2xl font-mono font-bold text-white">
-              {totalDetections}
-            </span>
-          </div>
-        </div>
-
-        {/* Status indicator */}
-        <div className="pt-2 border-t border-glassBorder mt-1">
-          <div className="flex items-center justify-between">
-            <span className="text-[8px] uppercase tracking-wider text-gray-700">Stream Cache Status</span>
-            <span className="text-[9px] font-mono text-cyberTeal/50">OK</span>
-          </div>
-          <div className="w-full h-[2px] bg-glassWhite mt-2 relative overflow-hidden">
-             <motion.div 
-               animate={{ x: ["-100%", "100%"] }}
-               transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
-               className="absolute inset-0 w-1/3 bg-cyberTeal/40"
-             />
-          </div>
-        </div>
       </div>
+
     </div>
   );
 });

@@ -1,67 +1,82 @@
+"use client";
+
 import { memo } from "react";
+import { Zap } from "lucide-react";
 import { motion } from "framer-motion";
 
 const RiskGauge = memo(({ score }: { score: number }) => {
+  const isDanger = score >= 50;
   const isCritical = score >= 80;
-  const isDanger = score >= 50 && score < 80;
-  const strokeColor = isCritical ? "#FF3366" : isDanger ? "#FFCC00" : "#0FF4C6";
-  
-  // Array of 24 ticks for the circular gauge
-  const ticks = Array.from({ length: 24 });
+
+  // Determine elegant startup color based on threshold
+  let strokeColor = "rgba(59, 130, 246, 1)"; // sysAccent (Blue)
+  if (isCritical) strokeColor = "rgba(239, 68, 68, 1)"; // signalDanger (Red)
+  else if (isDanger) strokeColor = "rgba(234, 179, 8, 1)"; // alertWarn (Yellow)
+
+  // Circular math
+  const radius = 46;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (score / 100) * circumference;
 
   return (
-    <div className="flex flex-col items-center justify-center p-6 glass-panel relative overflow-hidden h-full">
-      <div className="absolute top-4 left-4">
-        <span className="text-[9px] uppercase tracking-[0.2em] font-bold text-gray-500">Telemetry</span>
-      </div>
+    <div className="w-full h-full p-4 flex items-center justify-between">
       
-      <div className="relative w-48 h-48 flex items-center justify-center">
-        {/* Animated Background Pulse */}
-        <motion.div 
-          animate={{ scale: isCritical ? [1, 1.2, 1] : 1, opacity: isCritical ? [0.1, 0.3, 0.1] : 0.05 }}
-          transition={{ repeat: Infinity, duration: 0.8 }}
-          className="absolute inset-0 rounded-full blur-2xl"
-          style={{ backgroundColor: strokeColor }}
-        />
-
-        {/* Ticks (Speedometer Style) */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          {ticks.map((_, i) => {
-            const angle = (i * 360) / ticks.length;
-            const threshold = (i / ticks.length) * 100;
-            const isActive = score > threshold;
-            
-            return (
-              <div
-                key={i}
-                className="absolute w-1 h-3 rounded-full transition-all duration-300"
-                style={{
-                  transform: `rotate(${angle}deg) translateY(-80px)`,
-                  backgroundColor: isActive ? strokeColor : 'rgba(255,255,255,0.05)',
-                  boxShadow: isActive ? `0 0 10px ${strokeColor}` : 'none'
-                }}
-              />
-            );
-          })}
+      {/* Risk Meta Text */}
+      <div className="flex flex-col h-full justify-between pr-4 max-w-[50%]">
+        <div className="flex items-center space-x-2">
+          <Zap className={`w-4 h-4 ${isCritical ? 'text-signalDanger' : 'text-textMuted'}`} />
+          <h2 className="text-sm font-semibold tracking-tight text-white">Threat Level</h2>
         </div>
-
-        {/* Main Numerical Display */}
-        <div className="flex flex-col items-center z-10">
-          <motion.div
-            key={score}
-            initial={{ scale: 0.9, opacity: 0.8 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="flex items-baseline"
-          >
-            <span className="text-5xl font-mono font-bold tracking-tighter text-white">
-              {score.toFixed(0)}
-            </span>
-            <span className="text-xs text-gray-500 ml-1 mb-1">%</span>
-          </motion.div>
-          <span className={`text-[10px] uppercase tracking-[0.2em] font-bold mt-2 ${isCritical ? 'text-neonRed animate-pulse' : 'text-gray-400'}`}>
-            {isCritical ? 'High Risk' : isDanger ? 'Caution' : 'Optimal'}
+        <div>
+          <span className="text-xs text-textMuted uppercase tracking-wider block mb-1">Status</span>
+          <span className={`text-lg font-bold tracking-tight
+            ${isCritical ? 'text-signalDanger' : isDanger ? 'text-alertWarn' : 'text-sysAccent'}
+          `}>
+             {isCritical ? "CRITICAL" : isDanger ? "ELEVATED" : "NOMINAL"}
           </span>
         </div>
+      </div>
+
+      {/* Spring Animated Gauge Element */}
+      <div className="relative flex items-center justify-center shrink-0">
+         <svg width="120" height="120" className="-rotate-90">
+             {/* Track */}
+             <circle 
+               cx="60" 
+               cy="60" 
+               r={radius} 
+               stroke="rgba(255,255,255,0.05)" 
+               strokeWidth="10" 
+               fill="transparent" 
+             />
+             {/* Animated Progress Arc */}
+             <motion.circle 
+               cx="60" 
+               cy="60" 
+               r={radius} 
+               stroke={strokeColor} 
+               strokeWidth="10" 
+               fill="transparent"
+               strokeLinecap="round"
+               initial={{ strokeDashoffset: circumference }}
+               animate={{ strokeDashoffset: strokeDashoffset }}
+               transition={{ type: "spring", stiffness: 60, damping: 15 }}
+               style={{ strokeDasharray: circumference }}
+             />
+         </svg>
+
+         {/* Center Number with Spring Roll */}
+         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+            <motion.span 
+               className="text-2xl font-bold text-white tracking-tighter"
+               key={Math.round(score)}
+               initial={{ y: 5, opacity: 0 }}
+               animate={{ y: 0, opacity: 1 }}
+               transition={{ type: "spring", stiffness: 300, damping: 25 }}
+            >
+               {Math.round(score)}
+            </motion.span>
+         </div>
       </div>
     </div>
   );

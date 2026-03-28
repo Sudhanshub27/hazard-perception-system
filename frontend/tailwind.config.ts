@@ -9,22 +9,24 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        obsidian: "#050508",
-        cyberTeal: "#0FF4C6",
-        neonRed: "#FF3366",
-        glassWhite: "rgba(255, 255, 255, 0.05)",
-        glassBorder: "rgba(255, 255, 255, 0.1)",
-      },
-      backgroundImage: {
-        "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
+        surf: "#09090b",       // Zinc 950 - Extremely deep, essentially black but softer.
+        panel: "#18181b",      // Zinc 900 - Premium elevated card layer.
+        borderSubtle: "#27272a", // Zinc 800 - Barely there borders
+        borderStrong: "#3f3f46", // Zinc 700 - Hover borders
+        textMuted: "#a1a1aa",  // Zinc 400
+        
+        sysAccent: "#3b82f6",  // Blue 500
+        signalDanger: "#ef4444",// Red 500
+        alertWarn: "#eab308",  // Yellow 500
+        safeGreen: "#22c55e",  // Green 500
       },
       fontFamily: {
-        sans: ["var(--font-inter)", "system-ui", "sans-serif"],
-        mono: ["var(--font-jetbrains)", "monospace"],
+        sans: ["var(--font-inter)", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "system-ui", "sans-serif"],
+        mono: ["var(--font-jetbrains)", "Menlo", "Consolas", "monospace"],
       },
       boxShadow: {
-        'neon': '0 0 20px rgba(15, 244, 198, 0.15)',
-        'neon-danger': '0 0 40px rgba(255, 51, 102, 0.3)',
+        'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.4)',
+        'glow-danger': '0 0 40px rgba(239, 68, 68, 0.15)',
       }
     },
   },

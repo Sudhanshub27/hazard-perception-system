@@ -1,117 +1,82 @@
+"use client";
+
 import { memo } from "react";
-import { Video, ShieldAlert, AlertTriangle, ShieldCheck } from "lucide-react";
+import { Video, AlertCircle, ShieldCheck } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-interface VideoCanvasProps {
+const VideoCanvas = memo(({
+  frameB64,
+  status,
+  riskScore
+}: {
   frameB64: string | null;
   status: string;
   riskScore: number;
-}
-
-const VideoCanvas = memo(({ frameB64, status, riskScore }: VideoCanvasProps) => {
-  const isActive = status === 'Live';
-  
-  // HUD logic
+}) => {
   const isCritical = riskScore >= 80;
-  const isDanger = riskScore >= 50 && riskScore < 80;
-  const statusText = isCritical ? "!!! DANGER DETECTED !!!" : isDanger ? "CAUTION: SCANNING" : "SYSTEM CLEAR";
-  const statusColor = isCritical ? "text-neonRed" : isDanger ? "text-amber-400" : "text-cyberTeal";
-  const StatusIcon = isCritical ? AlertTriangle : isDanger ? ShieldAlert : ShieldCheck;
 
   return (
-    <div className="glass-panel w-full aspect-video flex flex-col overflow-hidden relative group border-[rgba(15,244,198,0.2)]">
+    <div className="relative w-full h-full bg-black flex items-center justify-center overflow-hidden">
       
-      {/* Target Reticles (Corners) */}
-      <div className="absolute top-4 left-4 w-6 h-6 border-t-2 border-l-2 border-cyberTeal/40 rounded-tl-sm pointer-events-none z-20" />
-      <div className="absolute top-4 right-4 w-6 h-6 border-t-2 border-r-2 border-cyberTeal/40 rounded-tr-sm pointer-events-none z-20" />
-      <div className="absolute bottom-4 left-4 w-6 h-6 border-b-2 border-l-2 border-cyberTeal/40 rounded-bl-sm pointer-events-none z-20" />
-      <div className="absolute bottom-4 right-4 w-6 h-6 border-b-2 border-r-2 border-cyberTeal/40 rounded-br-sm pointer-events-none z-20" />
-
-      {/* Top HUD bar */}
-      <div className="absolute top-0 w-full p-4 flex justify-between items-center z-30 bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
-        <div className="flex items-center space-x-3">
-          <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-cyberTeal tracking-[0.3em] uppercase opacity-80">System.Stream.HD</span>
-            <div className="flex items-center space-x-2 mt-1">
-              <div className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-neonRed animate-pulse' : 'bg-gray-500'}`} />
-              <span className="text-[9px] font-mono uppercase tracking-widest text-gray-300">
-                {status} :: INGESTING_RAW
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Large Central Status HUD (UX Simplification) */}
-      <AnimatePresence>
-        {isActive && (
-          <motion.div 
-            key={statusText}
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 1.1 }}
-            className="absolute top-12 w-full flex justify-center z-40 pointer-events-none"
-          >
-            <div className={`px-6 py-2 rounded-full glass-panel flex items-center space-x-3 border-2 ${isCritical ? 'border-neonRed/50' : 'border-glassBorder'}`}>
-              <StatusIcon className={`w-4 h-4 ${statusColor} ${isCritical ? 'animate-pulse' : ''}`} />
-              <span className={`text-[11px] font-black uppercase tracking-[0.3em] ${statusColor}`}>
-                {statusText}
-              </span>
-            </div>
-          </motion.div>
+      {/* Background Frame Layer */}
+      <AnimatePresence mode="wait">
+        {frameB64 ? (
+           <motion.img
+             key="feed"
+             src={`data:image/jpeg;base64,${frameB64}`}
+             initial={{ opacity: 0, filter: "blur(4px)" }}
+             animate={{ opacity: 1, filter: "blur(0px)" }}
+             transition={{ duration: 0.3 }}
+             className="w-full h-full object-contain"
+             alt="Live Inference Feed"
+           />
+        ) : (
+           <motion.div 
+             key="placeholder"
+             initial={{ opacity: 0 }}
+             animate={{ opacity: 1 }}
+             exit={{ opacity: 0 }}
+             className="flex flex-col items-center justify-center text-borderStrong"
+           >
+             <Video className="w-12 h-12 mb-4" />
+             <p className="text-sm font-medium tracking-wide">Waiting for Video Source</p>
+           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Scanning Laser Effect */}
-      {isActive && (
-        <motion.div 
-          initial={{ top: "0%" }}
-          animate={{ top: "100%" }}
-          transition={{ repeat: Infinity, duration: 4, ease: "linear" }}
-          className="absolute left-0 w-full h-[1px] bg-cyberTeal/30 shadow-[0_0_15px_rgba(15,244,198,0.5)] z-20 pointer-events-none"
-        />
-      )}
-
-      {/* Main Canvas Area */}
-      <div className="relative w-full h-full flex flex-col items-center justify-center bg-black/40 overflow-hidden">
-        {frameB64 ? (
-          <>
-            <img 
-              src={`data:image/jpeg;base64,${frameB64}`} 
-              alt="Live Dashcam Stream"
-              className="w-full h-full object-contain transition-opacity duration-300"
-            />
-            {/* Vignette shadow to blend edges */}
-            <div className="absolute inset-0 shadow-[inset_0_0_150px_rgba(0,0,0,0.8)] pointer-events-none" />
-            
-            {/* Red Screen Flash for Critical Events */}
-            {isCritical && (
-              <motion.div 
-                animate={{ opacity: [0, 0.2, 0] }}
-                transition={{ repeat: Infinity, duration: 0.5 }}
-                className="absolute inset-0 bg-neonRed pointer-events-none mix-blend-overlay"
-              />
-            )}
-          </>
-        ) : (
-          <div className="flex flex-col items-center justify-center space-y-4">
-            <div className="relative">
-              <Video className="w-12 h-12 text-cyberTeal animate-pulse opacity-20" />
-              <motion.div 
-                animate={{ rotate: 360 }}
-                transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
-                className="absolute -inset-2 border-t border-cyberTeal/20 rounded-full"
-              />
-            </div>
-            <p className="text-[10px] uppercase tracking-[0.4em] font-bold text-gray-500">
-              Initializing Source...
-            </p>
-          </div>
+      {/* Critical Danger Overlay - Smooth Flash */}
+      <AnimatePresence>
+        {isCritical && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: [0.1, 0.3, 0.1] }}
+            exit={{ opacity: 0 }}
+            transition={{ repeat: Infinity, duration: 1.5 }}
+            className="absolute inset-0 bg-signalDanger pointer-events-none mix-blend-color-burn"
+          />
         )}
-      </div>
+      </AnimatePresence>
 
-      {/* Static Scanline Overlay */}
-      <div className="absolute inset-0 pointer-events-none opacity-[0.05] bg-[linear-gradient(rgba(255,255,255,0.05)_50%,rgba(0,0,0,0.1)_50%)] bg-[length:100%_4px] mix-blend-overlay" />
+      {/* Floating Status Pill */}
+      <motion.div 
+         initial={{ y: -20, opacity: 0 }}
+         animate={{ y: 0, opacity: 1 }}
+         transition={{ delay: 0.2 }}
+         className="absolute top-4 right-4 flex items-center space-x-2 bg-panel/80 backdrop-blur-md border border-borderSubtle px-3 py-1.5 rounded-full shadow-soft"
+      >
+        {status === "Live" && !isCritical && <ShieldCheck className="w-4 h-4 text-safeGreen" />}
+        {status === "Live" && isCritical && <AlertCircle className="w-4 h-4 text-signalDanger animate-pulse" />}
+        <span className="text-xs font-semibold tracking-wide text-gray-200">
+           {status.toUpperCase()}
+        </span>
+        {status === "Live" && (
+           <span className="relative flex h-2 w-2 ml-1">
+             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sysAccent opacity-75"></span>
+             <span className="relative inline-flex rounded-full h-2 w-2 bg-sysAccent"></span>
+           </span>
+        )}
+      </motion.div>
+
     </div>
   );
 });

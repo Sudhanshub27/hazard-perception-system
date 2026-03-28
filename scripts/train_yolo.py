@@ -21,7 +21,7 @@ def main():
     # Note: In a real interview/production, explain why Nano is chosen over Large!
     # A Large model achieves maybe +3 mAP but drops inference FPS from 35 down to 5.
     print("Initializing YOLO26n base model...")
-    model = YOLO("yolo26n.pt") 
+    model = YOLO("yolov8n.pt") 
     
     # 2. Train the model on BDD100K
     print(f"Starting training pipeline. Reading dataset from {CONFIG_PATH}")

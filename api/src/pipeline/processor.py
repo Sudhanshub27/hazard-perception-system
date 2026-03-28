@@ -42,11 +42,11 @@ class FrameProcessor:
             print(f"[Processor ERROR] Model inference failed: {e}")
             return []
 
-    def _draw_hud(self, frame: np.ndarray, detections: list[Detection], risk_score: float, risk_level: str) -> np.ndarray:
+    @staticmethod
+    def _draw_hud(frame: np.ndarray, detections: list[Detection], risk_score: float, risk_level: str) -> np.ndarray:
         """
         Draws the heads-up display (HUD): bounding boxes and risk telemetry.
         """
-        # Define color palette based on risk
         colors = {
             "safe":     (0, 255, 0),    # Green
             "caution":  (0, 200, 255),  # Yellow
@@ -58,22 +58,42 @@ class FrameProcessor:
         for det in detections:
             x1, y1, x2, y2 = [int(v) for v in det.bbox]
             
-            # Thick red box for people, thin blue box for cars, etc.
             box_color = (0, 0, 255) if det.class_name in ["person", "rider"] else (255, 0, 0)
             cv2.rectangle(frame, (x1, y1), (x2, y2), box_color, 2)
             
-            # Draw label background and text
             label = f"{det.class_name} {det.confidence:.1f}"
-            (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
-            cv2.rectangle(frame, (x1, y1 - 20), (x1 + w, y1), box_color, -1)
-            cv2.putText(frame, label, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
+            (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)
+            cv2.rectangle(frame, (x1, y1 - 15), (x1 + w, y1), box_color, -1)
+            cv2.putText(frame, label, (x1, y1 - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255,255,255), 1)
 
         return frame
+
+    def _sync_read_and_prepare(self, cap: cv2.VideoCapture) -> tuple[bool, bytes | None, np.ndarray | None, int, int]:
+        """Synchronous CPU-bound wrapper for reading and scaling the frame."""
+        success, frame = cap.read()
+        if not success:
+            return False, None, None, 0, 0
+
+        h, w = frame.shape[:2]
+        scale = DISPLAY_WIDTH / w
+        sh, sw = int(h * scale), DISPLAY_WIDTH
+        frame_small = cv2.resize(frame, (sw, sh))
+        
+        # 1. Prepare frame for network transport
+        _, buffer = cv2.imencode('.jpg', frame_small, [cv2.IMWRITE_JPEG_QUALITY, 75])
+        return True, buffer.tobytes(), frame_small, sw, sh
+
+    def _sync_annotate_and_encode(self, frame_small: np.ndarray, detections: list[Detection], risk_score: float, risk_level: str) -> str:
+        """Synchronous CPU-bound wrapper for drawing the HUD and compressing to base64."""
+        annotated_frame = self._draw_hud(frame_small, detections, risk_score, risk_level)
+        _, annotated_buffer = cv2.imencode('.jpg', annotated_frame, [cv2.IMWRITE_JPEG_QUALITY, 60])
+        return base64.b64encode(annotated_buffer).decode("utf-8")
 
     async def process_video(self, video_path: str):
         """
         Main Video Pipeline.
         Decodes -> Resizes -> Infers -> Scores -> Annotates -> Yields Base64 JSON
+        Runs blocking operations safely wrapped in asyncio threads to protect WebSocket streams.
         """
         if not os.path.exists(video_path):
             print(f"[Processor ERROR] Video file missing: {video_path}")
@@ -82,41 +102,25 @@ class FrameProcessor:
         cap = cv2.VideoCapture(video_path)
         frame_id = 0
         
-        # Persistent HTTP client to avoid handshake overhead on every frame
         async with httpx.AsyncClient() as client:
             while cap.isOpened():
                 loop_start = time.time()
                 
-                success, frame = cap.read()
-                if not success:
-                    break  # End of video
-
-                h, w = frame.shape[:2]
+                # Safe async offload of heavy I/O and cv2 array math
+                success, frame_bytes, frame_small, sw, sh = await asyncio.to_thread(self._sync_read_and_prepare, cap)
                 
-                # Performance Optimization: Downscale frame for detection and preview
-                # This reduces network load and inference latency by 60%+
-                scale = DISPLAY_WIDTH / w
-                frame_small = cv2.resize(frame, (DISPLAY_WIDTH, int(h * scale)))
-                
-                # 1. Prepare frame for network transport
-                _, buffer = cv2.imencode('.jpg', frame_small, [cv2.IMWRITE_JPEG_QUALITY, 70])
-                frame_bytes = buffer.tobytes()
+                if not success or frame_bytes is None or frame_small is None:
+                    break
                 
                 # 2. Parallelize model inference (Async network call to Model Service)
                 detections = await self._infer_frame(client, frame_bytes)
                 
-                # 3. Deterministic Risk Scoring (CPU bound, <1ms)
-                sh, sw = frame_small.shape[:2]
+                # 3. Deterministic Risk Scoring
                 risk_score = compute_risk_score([d.model_dump() for d in detections], sw, sh)
                 risk_level = classify_risk(risk_score)
                 
-                # 4. Heads-Up Display rendering (on the downscaled frame)
-                annotated_frame = self._draw_hud(frame_small, detections, risk_score, risk_level)
-                
-                # 5. Base64 encode the annotated frame for WebSocket consumption
-                # Quality 60 is the "Sweet Spot" for dashcam previews
-                _, annotated_buffer = cv2.imencode('.jpg', annotated_frame, [cv2.IMWRITE_JPEG_QUALITY, 60])
-                frame_b64 = base64.b64encode(annotated_buffer).decode("utf-8")
+                # 4 & 5. HUD rendering and Base64 compression
+                frame_b64 = await asyncio.to_thread(self._sync_annotate_and_encode, frame_small, detections, risk_score, risk_level)
                 
                 # 6. Build FrameResult payload
                 timestamp_ms = cap.get(cv2.CAP_PROP_POS_MSEC)
@@ -131,7 +135,6 @@ class FrameProcessor:
                 
                 yield result
                 
-                # Throttle processing loop to maintain ~24 FPS stability
                 frame_id += 1
                 processing_time = time.time() - loop_start
                 sleep_time = max(0.0, FRAME_INTERVAL - processing_time)

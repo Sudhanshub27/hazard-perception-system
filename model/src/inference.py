@@ -61,6 +61,10 @@ class YOLOInference:
         # Transpose output to (8400, 14) so each row is a prediction
         preds = output[0].T 
         
+        boxes = []
+        confidences = []
+        class_ids = []
+        
         for pred in preds:
             # pred formatting: [px, py, w, h, class0_conf, class1_conf, ..., class9_conf]
             box = pred[0:4]
@@ -69,24 +73,33 @@ class YOLOInference:
             class_id = int(np.argmax(scores))
             confidence = float(scores[class_id])
             
-            # Confidence thresholding (e.g. 0.4)
+            # 1st Pass Thresholding
             if confidence > 0.4:
-                # box is [x_center, y_center, width, height] mapped to 640x640
                 xc, yc, w, h = box
                 
                 # Rescale coordinates to original image dimensions
                 x1 = (xc - w/2) * (original_w / 640.0)
                 y1 = (yc - h/2) * (original_h / 640.0)
-                x2 = (xc + w/2) * (original_w / 640.0)
-                y2 = (yc + h/2) * (original_h / 640.0)
+                box_w = w * (original_w / 640.0)
+                box_h = h * (original_h / 640.0)
                 
+                boxes.append([float(x1), float(y1), float(box_w), float(box_h)])
+                confidences.append(confidence)
+                class_ids.append(class_id)
+
+        # 4. NON-MAXIMUM SUPPRESSION (NMS)
+        # Prevents YOLO from emitting 50 overlapping boxes for the exact same car.
+        indices = cv2.dnn.NMSBoxes(boxes, confidences, score_threshold=0.4, nms_threshold=0.5)
+        
+        detections = []
+        if len(indices) > 0:
+            for i in indices.flatten():
+                x1, y1, w, h = boxes[i]
                 detections.append({
-                    "class_id": class_id,
-                    "class_name": CLASS_NAMES[class_id],
-                    "confidence": confidence,
-                    "bbox": [float(x1), float(y1), float(x2), float(y2)]
+                    "class_id": class_ids[i],
+                    "class_name": CLASS_NAMES[class_ids[i]],
+                    "confidence": confidences[i],
+                    "bbox": [x1, y1, x1 + w, y1 + h]
                 })
 
-        # Future: apply Non-Maximum Suppression (NMS) here to remove overlapping boxes
-        # (YOLOv8 ONNX often requires manual NMS if not baked into the export graph.)
         return detections
