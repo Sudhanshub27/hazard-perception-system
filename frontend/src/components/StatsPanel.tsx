@@ -12,14 +12,14 @@ const StatsPanel = memo(({ objects }: { objects: any[] }) => {
     <div className="h-full flex flex-col bg-transparent">
       
       {/* Soft Header */}
-      <div className="px-5 py-4 border-b border-borderSubtle flex items-center justify-between">
+      <div className="px-5 py-3 border-b border-borderSubtle flex items-center justify-between">
          <div className="flex items-center space-x-2">
            <Activity className="w-4 h-4 text-textMuted" />
            <span className="text-sm font-semibold text-white tracking-tight">Active Matrix</span>
          </div>
       </div>
 
-      <div className="flex-1 p-5 flex flex-col justify-center space-y-3">
+      <div className="flex-1 px-5 py-3 flex flex-col justify-center space-y-2">
         
         <motion.div 
            whileHover={{ scale: 1.02 }} 

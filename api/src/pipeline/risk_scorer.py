@@ -19,9 +19,10 @@ Algorithm overview (Phase 4):
 from __future__ import annotations
 
 
-# Danger weights per BDD100K class (higher = more dangerous)
-# Tunable without retraining — just change these values
+# Danger weights per class (higher = more dangerous)
+# Covers both BDD100K (10-class) and COCO (80-class) model outputs
 DANGER_WEIGHTS = {
+    # BDD100K class names
     "person":        10.0,
     "rider":          8.0,
     "bicycle":        7.0,
@@ -32,6 +33,16 @@ DANGER_WEIGHTS = {
     "traffic light":  3.0,
     "traffic sign":   1.0,
     "train":          9.0,
+    # Extra COCO-specific classes
+    "stop sign":      3.0,
+    "fire hydrant":   1.0,
+    "cat":            2.0,
+    "dog":            2.0,
+    "horse":          4.0,
+    "sheep":          3.0,
+    "cow":            4.0,
+    "elephant":       5.0,
+    "bear":           8.0,
 }
 
 # Risk level thresholds

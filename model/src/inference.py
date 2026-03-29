@@ -1,10 +1,6 @@
-"""
-ONNX Runtime Inference Wrapper for YOLO26
-Loads the exported best.onnx graph and performs CPU/GPU inference.
-"""
-import onnxruntime as ort
 import numpy as np
 import cv2
+from ultralytics import YOLO
 
 CLASS_NAMES = [
     "car", "truck", "bus", "person", "rider",
@@ -14,92 +10,60 @@ CLASS_NAMES = [
 class YOLOInference:
     def __init__(self, model_path: str):
         self.model_path = model_path
-        self.session = None
-        self.input_name = None
+        self.model = None
         self.is_loaded = False
-        
-        # We attempt to use CUDA (GPU) first, falling back to CPU seamlessly
-        self.providers = ['CUDAExecutionProvider', 'CPUExecutionProvider']
 
     def load(self):
-        print(f"Loading ONNX model from {self.model_path} via ONNXRuntime...")
+        print(f"Loading YOLO model from {self.model_path}...")
         try:
-            self.session = ort.InferenceSession(self.model_path, providers=self.providers)
-            self.input_name = self.session.get_inputs()[0].name
+            import torch
+            # PyTorch 2.6+ added strict weights_only=True which breaks .pt model loading.
+            # We temporarily whitelist the ultralytics model class to allow loading.
+            if self.model_path.endswith('.pt'):
+                try:
+                    from ultralytics.nn.tasks import DetectionModel
+                    # Allow ultralytics model loading in PyTorch 2.6+
+                    with torch.serialization.safe_open if hasattr(torch.serialization, 'safe_open') else (lambda *a, **k: __import__('contextlib').nullcontext()):
+                        pass
+                    torch.serialization.add_safe_globals([DetectionModel])
+                except Exception:
+                    pass
+            # task='detect' prevents ultralytics from guessing for ONNX
+            task = 'detect' if self.model_path.endswith('.onnx') else None
+            if task:
+                self.model = YOLO(self.model_path, task=task)
+            else:
+                self.model = YOLO(self.model_path)
             self.is_loaded = True
-            print("Model loaded successfully.")
+            print(f"✅ Model loaded! Classes: {len(self.model.names)} | Path: {self.model_path}")
+            print(f"   Class map: {self.model.names}")
         except Exception as e:
-            print(f"Failed to load ONNX model: {e}")
+            print(f"CRITICAL: Failed to load model at {self.model_path}: {e}")
             self.is_loaded = False
 
     def infer(self, frame: np.ndarray) -> list[dict]:
-        """
-        Runs the frame through ONNX runtime and parses YOLO's raw [1, 14, 8400] output array 
-        into our readable Detection schema format.
-        """
         if not self.is_loaded:
             return []
 
-        # YOLO expects RGB, 640x640, Normalized to [0,1], CHW format
-        original_h, original_w = frame.shape[:2]
-        
-        # 1. PRE-PROCESS
-        resized = cv2.resize(frame, (640, 640))
-        img = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
-        img = img.transpose((2, 0, 1)) # HWC to CHW
-        img = img.astype(np.float32) / 255.0
-        img = np.expand_dims(img, axis=0) # Add batch dimension -> (1, 3, 640, 640)
-
-        # 2. INFERENCE
-        outputs = self.session.run(None, {self.input_name: img})
-        output = outputs[0] # Shape: (batch=1, classes+boxes=14, anchors=8400)
-        
-        # 3. POST-PROCESS
-        # We need to filter and map coordinates back to full image size
-        detections = []
-        
-        # Transpose output to (8400, 14) so each row is a prediction
-        preds = output[0].T 
-        
-        boxes = []
-        confidences = []
-        class_ids = []
-        
-        for pred in preds:
-            # pred formatting: [px, py, w, h, class0_conf, class1_conf, ..., class9_conf]
-            box = pred[0:4]
-            scores = pred[4:]
-            
-            class_id = int(np.argmax(scores))
-            confidence = float(scores[class_id])
-            
-            # 1st Pass Thresholding
-            if confidence > 0.4:
-                xc, yc, w, h = box
-                
-                # Rescale coordinates to original image dimensions
-                x1 = (xc - w/2) * (original_w / 640.0)
-                y1 = (yc - h/2) * (original_h / 640.0)
-                box_w = w * (original_w / 640.0)
-                box_h = h * (original_h / 640.0)
-                
-                boxes.append([float(x1), float(y1), float(box_w), float(box_h)])
-                confidences.append(confidence)
-                class_ids.append(class_id)
-
-        # 4. NON-MAXIMUM SUPPRESSION (NMS)
-        # Prevents YOLO from emitting 50 overlapping boxes for the exact same car.
-        indices = cv2.dnn.NMSBoxes(boxes, confidences, score_threshold=0.4, nms_threshold=0.5)
+        # Lower confidence to 0.1 to maximize detections from weakly-trained models
+        results = self.model(frame, conf=0.1, verbose=False)
         
         detections = []
-        if len(indices) > 0:
-            for i in indices.flatten():
-                x1, y1, w, h = boxes[i]
-                detections.append({
-                    "class_id": class_ids[i],
-                    "class_name": CLASS_NAMES[class_ids[i]],
-                    "confidence": confidences[i],
-                    "bbox": [x1, y1, x1 + w, y1 + h]
-                })
+        if len(results) > 0:
+            boxes = results[0].boxes
+            if boxes is not None and len(boxes) > 0:
+                names = self.model.names  # can be 10 (BDD100K) or 80 (COCO)
+                for box in boxes:
+                    class_id = int(box.cls[0].item())
+                    confidence = float(box.conf[0].item())
+                    x1, y1, x2, y2 = [float(v) for v in box.xyxy[0].tolist()]
+                    class_name = names.get(class_id, f"object_{class_id}")
+                    
+                    detections.append({
+                        "class_id": class_id,
+                        "class_name": class_name,
+                        "confidence": confidence,
+                        "bbox": [x1, y1, x2, y2]
+                    })
 
         return detections

@@ -19,7 +19,7 @@ const RiskGauge = memo(({ score }: { score: number }) => {
   const strokeDashoffset = circumference - (score / 100) * circumference;
 
   return (
-    <div className="w-full h-full p-4 flex items-center justify-between">
+    <div className="w-full h-full px-4 py-2 flex items-center justify-between">
       
       {/* Risk Meta Text */}
       <div className="flex flex-col h-full justify-between pr-4 max-w-[50%]">

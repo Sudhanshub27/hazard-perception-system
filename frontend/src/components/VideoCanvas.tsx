@@ -27,7 +27,7 @@ const VideoCanvas = memo(({
              initial={{ opacity: 0, filter: "blur(4px)" }}
              animate={{ opacity: 1, filter: "blur(0px)" }}
              transition={{ duration: 0.3 }}
-             className="w-full h-full object-contain"
+             className="w-full h-full object-cover"
              alt="Live Inference Feed"
            />
         ) : (

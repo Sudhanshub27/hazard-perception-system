@@ -115,7 +115,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-surf text-gray-200 font-sans p-8 overflow-hidden flex flex-col h-screen selection:bg-sysAccent/30 selection:text-white">
+    <div className="h-screen bg-surf text-gray-200 font-sans p-8 flex flex-col overflow-hidden selection:bg-sysAccent/30 selection:text-white">
       
       {/* Premium Header */}
       <motion.header 
@@ -158,14 +158,14 @@ export default function Dashboard() {
         variants={{ show: { transition: { staggerChildren: 0.1 } } }}
         initial="hidden"
         animate="show"
-        className="flex-1 flex gap-8 h-full min-h-0"
+        className="flex-1 flex gap-8 min-h-0 overflow-hidden"
       >
         
         {/* Left Focus Area: Feed & Metrics */}
         <motion.div variants={FADE_UP} className="flex-[5] flex flex-col gap-8 min-w-0">
            
-           {/* Primary Video Canvas */}
-           <div className="w-full shrink-0 flex items-center place-content-center bg-panel border border-borderSubtle rounded-2xl shadow-soft overflow-hidden">
+           {/* Primary Video Canvas — always 16:9 regardless of source resolution */}
+           <div className="w-full bg-panel border border-borderSubtle rounded-2xl shadow-soft overflow-hidden" style={{ aspectRatio: '16/9' }}>
              <VideoCanvas 
                frameB64={frameB64} 
                status={status} 
@@ -195,17 +195,17 @@ export default function Dashboard() {
         </motion.div>
 
         {/* Right Aux Area: Risk & Logs */}
-        <motion.div variants={FADE_UP} className="flex-[3] flex flex-col gap-6 min-w-0">
+        <motion.div variants={FADE_UP} className="flex-[3] flex flex-col gap-6 min-w-0 min-h-0 overflow-hidden">
            
-           <div className="h-44 shrink-0 bg-panel border border-borderSubtle rounded-2xl shadow-soft overflow-hidden">
+           <div className="h-36 shrink-0 bg-panel border border-borderSubtle rounded-2xl shadow-soft overflow-hidden">
              <RiskGauge score={riskScore} />
            </div>
 
-           <div className="h-48 shrink-0 bg-panel border border-borderSubtle rounded-2xl shadow-soft overflow-hidden">
+           <div className="h-36 shrink-0 bg-panel border border-borderSubtle rounded-2xl shadow-soft overflow-hidden">
              <StatsPanel objects={detections} />
            </div>
 
-           <div className="flex-1 min-h-0 bg-panel border border-borderSubtle rounded-2xl shadow-soft overflow-hidden">
+           <div className="flex-1 min-h-[220px] overflow-hidden bg-panel border border-borderSubtle rounded-2xl shadow-soft">
              <HazardLog events={events} />
            </div>
            
