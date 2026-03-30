@@ -26,16 +26,16 @@ app.add_middleware(
 START_TIME = time.time()
 
 # 1. Initialize our inference wrapper globally
-# Priority: env var → local best.pt → local best.onnx → root yolov8n.pt (fallback)
+# Priority: env var → local best.pt → local best.onnx → root yolo26n.pt (fallback)
 WEIGHTS_PATH = os.getenv("MODEL_PATH", "")
 if not WEIGHTS_PATH or not os.path.exists(WEIGHTS_PATH):
     _base = os.path.join(os.path.dirname(__file__), "..", "weights")
     _candidates = [
         os.path.join(_base, "best.pt"),
         os.path.join(_base, "best.onnx"),
-        "yolov8n.pt",  # COCO pre-trained fallback (auto-downloads if missing)
+        "yolo26n.pt",  # YOLO26 Nano pretrained fallback (already in project root)
     ]
-    WEIGHTS_PATH = next((p for p in _candidates if os.path.exists(p)), "yolov8n.pt")
+    WEIGHTS_PATH = next((p for p in _candidates if os.path.exists(p)), "yolo26n.pt")
 print(f"[Model Service] Using weights: {WEIGHTS_PATH}")
 
 model = YOLOInference(WEIGHTS_PATH)

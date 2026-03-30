@@ -45,8 +45,10 @@ class YOLOInference:
         if not self.is_loaded:
             return []
 
-        # Lower confidence to 0.1 to maximize detections from weakly-trained models
-        results = self.model(frame, conf=0.1, verbose=False)
+        # Confidence threshold: 0.35 is well-tuned for real vehicle detection.
+        # 0.1 generates too much noise; 0.5 misses partially-occluded objects.
+        # iou=0.45 is the standard COCO benchmark NMS overlap threshold.
+        results = self.model(frame, conf=0.35, iou=0.45, verbose=False)
         
         detections = []
         if len(results) > 0:

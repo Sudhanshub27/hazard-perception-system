@@ -23,7 +23,7 @@ class RiskLevel(str, Enum):
 # ============================================================
 
 class Detection(BaseModel):
-    class_id:    int   = Field(..., ge=0, le=9, description="BDD100K class index 0–9")
+    class_id:    int   = Field(..., ge=0, description="Class index")
     class_name:  str   = Field(..., description="Human-readable class name")
     confidence:  float = Field(..., ge=0.0, le=1.0)
     bbox:        list[float] = Field(..., description="[x1, y1, x2, y2] in pixel coords")
@@ -34,12 +34,13 @@ class Detection(BaseModel):
 # ============================================================
 
 class FrameResult(BaseModel):
-    frame_id:    int
-    timestamp_ms: float = Field(..., description="Milliseconds into the video")
-    detections:  list[Detection]
-    risk_score:  float  = Field(..., ge=0.0, le=100.0)
-    risk_level:  RiskLevel
-    frame_b64:   Optional[str] = Field(None, description="Base64-encoded JPEG (WebSocket only)")
+    frame_id:       int
+    timestamp_ms:   float = Field(..., description="Milliseconds into the video")
+    detections:     list[Detection]
+    risk_score:     float  = Field(..., ge=0.0, le=100.0)
+    risk_level:     RiskLevel
+    recommendation: str   = Field("All Clear — Nominal Conditions", description="Contextual action guidance")
+    frame_b64:      Optional[str] = Field(None, description="Base64-encoded JPEG (WebSocket only)")
 
 
 # ============================================================

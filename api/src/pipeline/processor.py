@@ -12,14 +12,15 @@ import cv2
 import httpx
 import numpy as np
 
-from .risk_scorer import compute_risk_score, classify_risk
+from .risk_scorer import compute_risk_score, classify_risk, get_action_recommendation
 from ..models.schemas import FrameResult, Detection
 
 # To prevent overwhelming the browser, we use a smooth cinematic framerate.
 TARGET_FPS = 24
 FRAME_INTERVAL = 1.0 / TARGET_FPS
-# Downscale target (640px width is perfect for the dashboard HUD)
-DISPLAY_WIDTH = 640
+# Display resolution — match YOLO's native square input for sharpest detections
+DISPLAY_WIDTH = 720   # wider display with more pixels = crisper text
+INFER_SIZE = 640      # square crop sent to model for accurate YOLOv8 inference
 
 class FrameProcessor:
     def __init__(self, model_service_url: str):
@@ -60,31 +61,59 @@ class FrameProcessor:
     def _draw_hud(frame: np.ndarray, detections: list[Detection], risk_score: float, risk_level: str) -> np.ndarray:
         """
         Draws the heads-up display (HUD): bounding boxes and risk telemetry.
+        Uses anti-aliased text and high-quality label backgrounds for crisp readability.
         """
         colors = {
-            "safe":     (0, 255, 0),    # Green
-            "caution":  (0, 200, 255),  # Yellow
-            "danger":   (0, 0, 255),    # Red
-            "critical": (255, 0, 255)   # Magenta
+            "safe":     (34,  197, 94),    # Emerald green
+            "caution":  (251, 191,  36),   # Amber
+            "danger":   (239,  68,  68),   # Red
+            "critical": (217,  70, 239)    # Fuchsia
         }
         hud_color = colors.get(risk_level, (255, 255, 255))
-        
+
+        FONT      = cv2.FONT_HERSHEY_DUPLEX   # sharper than SIMPLEX at small sizes
+        FONT_SCALE = 0.55                     # larger → less compression blur
+        THICKNESS  = 1
+        PAD        = 4                        # label background padding in pixels
+
         for det in detections:
             x1, y1, x2, y2 = [int(v) for v in det.bbox]
-            
-            box_color = (0, 0, 255) if det.class_name in ["person", "rider"] else (255, 0, 0)
-            cv2.rectangle(frame, (x1, y1), (x2, y2), box_color, 2)
-            
-            label = f"{det.class_name} {det.confidence:.1f}"
-            (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)
-            cv2.rectangle(frame, (x1, y1 - 15), (x1 + w, y1), box_color, -1)
-            cv2.putText(frame, label, (x1, y1 - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255,255,255), 1)
+
+            # Choose box color: red for people/riders, blue for vehicles
+            box_color = (239, 68, 68) if det.class_name in ["person", "rider"] else (59, 130, 246)
+
+            # Draw bounding box — 2px with anti-aliased line cap
+            cv2.rectangle(frame, (x1, y1), (x2, y2), box_color, 2, cv2.LINE_AA)
+
+            # Build label string with confidence shown as percentage
+            label = f"{det.class_name}  {det.confidence * 100:.0f}%"
+            (tw, th), baseline = cv2.getTextSize(label, FONT, FONT_SCALE, THICKNESS)
+
+            # Background rectangle with padding so letters aren't clipped
+            bg_y1 = max(0, y1 - th - 2 * PAD)
+            bg_y2 = y1
+            bg_x2 = min(frame.shape[1], x1 + tw + 2 * PAD)
+
+            # Semi-opaque filled background (solid color for JPEG compatibility)
+            cv2.rectangle(frame, (x1, bg_y1), (bg_x2, bg_y2), box_color, cv2.FILLED)
+
+            # Crisp white text with LINE_AA anti-aliasing
+            text_y = bg_y2 - PAD
+            cv2.putText(
+                frame, label,
+                (x1 + PAD, text_y),
+                FONT, FONT_SCALE, (255, 255, 255), THICKNESS, cv2.LINE_AA
+            )
 
         return frame
 
     def _sync_read_and_prepare(self, cap: cv2.VideoCapture) -> tuple[bool, bytes | None, np.ndarray | None, int, int]:
         """Synchronous CPU-bound wrapper for reading and scaling the frame.
-        Always outputs a 16:9 frame (640x360) regardless of source resolution.
+        
+        Strategy:
+          - Display frame: 16:9 at DISPLAY_WIDTH for the browser canvas (crisp HUD rendering)
+          - Infer frame:   square 640x640 center-crop sent to YOLOv8 (matches its native input)
+            Sending a square matches YOLO's training image shape → better recall on small objects.
         """
         success, frame = cap.read()
         if not success:
@@ -94,31 +123,43 @@ class FrameProcessor:
         target_ratio = 16.0 / 9.0
         current_ratio = w / h
 
-        # Center-crop to 16:9 if the source aspect ratio doesn't match
+        # --- Display frame: center-crop to 16:9 ---
+        display_frame = frame.copy()
         if abs(current_ratio - target_ratio) > 0.05:
             if current_ratio > target_ratio:
-                # Too wide — crop sides
                 new_w = int(h * target_ratio)
                 x_off = (w - new_w) // 2
-                frame = frame[:, x_off:x_off + new_w]
+                display_frame = display_frame[:, x_off:x_off + new_w]
             else:
-                # Too tall — crop top/bottom (center crop keeps road in view)
                 new_h = int(w / target_ratio)
                 y_off = (h - new_h) // 2
-                frame = frame[y_off:y_off + new_h, :]
+                display_frame = display_frame[y_off:y_off + new_h, :]
 
-        # Now resize to consistent display size (640 wide, 360 tall = 16:9)
-        sw, sh = DISPLAY_WIDTH, int(DISPLAY_WIDTH / target_ratio)
-        frame_small = cv2.resize(frame, (sw, sh))
-        
-        # 1. Prepare frame for network transport
-        _, buffer = cv2.imencode('.jpg', frame_small, [cv2.IMWRITE_JPEG_QUALITY, 75])
-        return True, buffer.tobytes(), frame_small, sw, sh
+        sw = DISPLAY_WIDTH
+        sh = int(DISPLAY_WIDTH / target_ratio)
+        frame_display = cv2.resize(display_frame, (sw, sh), interpolation=cv2.INTER_AREA)
+
+        # --- Infer frame: square center-crop for accurate YOLO inference ---
+        # Take the central 640x640 square from the full resolution frame.
+        # This avoids letterboxing distortion that hurts small-object detection.
+        sq = min(h, w, INFER_SIZE)
+        cx, cy = w // 2, h // 2
+        x0, y0 = cx - sq // 2, cy - sq // 2
+        infer_crop = frame[y0:y0 + sq, x0:x0 + sq]
+        infer_resized = cv2.resize(infer_crop, (INFER_SIZE, INFER_SIZE), interpolation=cv2.INTER_AREA)
+
+        # Encode infer frame at high quality (85) — better feature preservation for model
+        _, buffer = cv2.imencode('.jpg', infer_resized, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        return True, buffer.tobytes(), frame_display, sw, sh
 
     def _sync_annotate_and_encode(self, frame_small: np.ndarray, detections: list[Detection], risk_score: float, risk_level: str) -> str:
-        """Synchronous CPU-bound wrapper for drawing the HUD and compressing to base64."""
+        """Synchronous CPU-bound wrapper for drawing the HUD and compressing to base64.
+        
+        Quality raised to 92: JPEG at 60 creates block artifacts around small text.
+        At 92 the text labels stay crisp with only ~30% larger payload.
+        """
         annotated_frame = self._draw_hud(frame_small, detections, risk_score, risk_level)
-        _, annotated_buffer = cv2.imencode('.jpg', annotated_frame, [cv2.IMWRITE_JPEG_QUALITY, 60])
+        _, annotated_buffer = cv2.imencode('.jpg', annotated_frame, [cv2.IMWRITE_JPEG_QUALITY, 92])
         return base64.b64encode(annotated_buffer).decode("utf-8")
 
     async def process_video(self, video_path: str):
@@ -147,9 +188,11 @@ class FrameProcessor:
                 # 2. Parallelize model inference (Async network call to Model Service)
                 detections = await self._infer_frame(client, frame_bytes)
                 
-                # 3. Deterministic Risk Scoring
-                risk_score = compute_risk_score([d.model_dump() for d in detections], sw, sh)
+                # 3. Deterministic Risk Scoring + Action Recommendation
+                det_dicts = [d.model_dump() for d in detections]
+                risk_score = compute_risk_score(det_dicts, sw, sh)
                 risk_level = classify_risk(risk_score)
+                recommendation = get_action_recommendation(det_dicts, risk_score)
                 
                 # 4 & 5. HUD rendering and Base64 compression
                 frame_b64 = await asyncio.to_thread(self._sync_annotate_and_encode, frame_small, detections, risk_score, risk_level)
@@ -162,6 +205,7 @@ class FrameProcessor:
                     detections=detections,
                     risk_score=risk_score,
                     risk_level=risk_level,
+                    recommendation=recommendation,
                     frame_b64=frame_b64
                 )
                 

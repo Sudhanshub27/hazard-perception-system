@@ -1,15 +1,9 @@
 """
 WebSocket Streaming Route — Phase 1 Stub
 Full implementation in Phase 5.
-
-WHY WebSockets over HTTP polling?
-  - Polling: client sends request every N ms, most responses are empty
-  - WebSocket: server pushes data the instant a frame is ready
-  - At 30 FPS: polling would mean 30 HTTP round-trips/sec per client
-    WebSocket: 1 persistent connection, ~2ms latency per frame
-  - Bi-directional: client can send control messages (pause, stop)
 """
 import os
+import traceback
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 import asyncio
 from ..pipeline.processor import FrameProcessor
@@ -17,8 +11,6 @@ from ..pipeline.processor import FrameProcessor
 router = APIRouter(prefix="/ws", tags=["stream"])
 
 class ConnectionManager:
-    """Tracks all active WebSocket clients for broadcast support."""
-
     def __init__(self):
         self.active: list[WebSocket] = []
 
@@ -31,7 +23,6 @@ class ConnectionManager:
             self.active.remove(ws)
 
     async def send(self, ws: WebSocket, data: dict):
-        # Make sure not to send to closed sockets
         try:
             await ws.send_json(data)
         except Exception:
@@ -39,26 +30,27 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-# Default to the Docker composed service URL
-MODEL_SERVICE_URL = os.getenv("MODEL_SERVICE_URL", "http://localhost:8001")
+MODEL_SERVICE_URL = os.getenv("MODEL_SERVICE_URL", "http://127.0.0.1:8001")
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "/app/uploads")
+if not os.path.exists(UPLOAD_DIR) and not UPLOAD_DIR.startswith("/app"):
+    UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "uploads")
+# For local Windows development overrides
+if os.name == 'nt' and UPLOAD_DIR == "/app/uploads":
+    UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "uploads")
 
 @router.websocket("/stream/{video_id}")
 async def stream_video(websocket: WebSocket, video_id: str):
-    """
-    WebSocket endpoint — streams annotated frames + risk scores.
-    """
     await manager.connect(websocket)
     
-    # 1. Resolve path to uploaded video
-    # In a real app we'd look this up in the DB
     video_path = None
-    for f in os.listdir(UPLOAD_DIR):
-        if f.startswith(video_id):
-            video_path = os.path.join(UPLOAD_DIR, f)
-            break
+    if os.path.exists(UPLOAD_DIR):
+        for f in os.listdir(UPLOAD_DIR):
+            if f.startswith(video_id):
+                video_path = os.path.join(UPLOAD_DIR, f)
+                break
             
     if not video_path:
+        print(f"[StreamRoute] CRITICAL: Video {video_id} not found in {UPLOAD_DIR}")
         await manager.send(websocket, {"error": "Video not found"})
         manager.disconnect(websocket)
         return
@@ -66,25 +58,25 @@ async def stream_video(websocket: WebSocket, video_id: str):
     processor = FrameProcessor(model_service_url=MODEL_SERVICE_URL)
     
     try:
-        # Acknowledge connection
         await manager.send(websocket, {
             "type": "status",
             "message": f"Stream starting for video_id={video_id}..."
         })
         
-        # 2. Main processing loop
         async for frame_result in processor.process_video(video_path):
-            # Send the complete frame state (JSON + Base64 image) down the socket
             await manager.send(websocket, {
                 "type": "frame",
                 "payload": frame_result.model_dump()
             })
             
-        # Send end signal
         await manager.send(websocket, {"type": "end_of_stream"})
         
     except WebSocketDisconnect:
         print(f"Client disconnected from stream {video_id}")
+    except Exception as e:
+        print(f"[StreamRoute EXCEPTION]: {e}")
+        traceback.print_exc()
     finally:
         manager.disconnect(websocket)
+
 

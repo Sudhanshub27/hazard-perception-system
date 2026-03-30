@@ -10,8 +10,10 @@ import uuid
 router = APIRouter(prefix="/video", tags=["upload"])
 
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "/app/uploads")
-# For local Windows development without Docker
 if not os.path.exists(UPLOAD_DIR) and not UPLOAD_DIR.startswith("/app"):
+    UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "uploads")
+# For local Windows development overrides
+if os.name == 'nt' and UPLOAD_DIR == "/app/uploads":
     UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 

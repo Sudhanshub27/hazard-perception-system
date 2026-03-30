@@ -66,6 +66,47 @@ def classify_risk(score: float) -> str:
         return "critical"
 
 
+# Context-aware action recommendations per threat scenario
+_PEDESTRIAN_CLASSES = {"person", "rider"}
+_VEHICLE_CLASSES    = {"car", "truck", "bus", "motorcycle", "bicycle", "train"}
+_SIGNAL_CLASSES     = {"traffic light", "stop sign"}
+
+def get_action_recommendation(detections: list[dict], score: float) -> str:
+    """
+    Returns a short, actionable instruction based on active detections and risk score.
+    Displayed on the dashboard when threat level is elevated.
+    """
+    if score <= 30:
+        return "All Clear — Nominal Conditions"
+
+    classes = {d.get("class_name", "") for d in detections}
+
+    # ── Critical Tier ────────────────────────────────────────────────
+    if score > 85:
+        if classes & _PEDESTRIAN_CLASSES:
+            return "⚠ BRAKE NOW — PEDESTRIAN IN PATH"
+        if classes & _VEHICLE_CLASSES:
+            return "⚠ COLLISION RISK — INCREASE DISTANCE IMMEDIATELY"
+        if classes & _SIGNAL_CLASSES:
+            return "⚠ SIGNAL AHEAD — REDUCE SPEED"
+        return "⚠ CRITICAL HAZARD — REDUCE SPEED NOW"
+
+    # ── Danger Tier ──────────────────────────────────────────────────
+    if score > 60:
+        if classes & _PEDESTRIAN_CLASSES:
+            return "Pedestrian Detected — Prepare to Stop"
+        if classes & _VEHICLE_CLASSES:
+            return "Vehicle Proximity Alert — Maintain Safe Distance"
+        return "Hazard Detected — Stay Alert"
+
+    # ── Caution Tier ─────────────────────────────────────────────────
+    if classes & _PEDESTRIAN_CLASSES:
+        return "Pedestrian Zone — Slow Down"
+    if classes & _VEHICLE_CLASSES:
+        return "Traffic Ahead — Monitor Spacing"
+    return "Caution — Potential Hazard Ahead"
+
+
 def compute_risk_score(detections: list[dict], frame_w: int, frame_h: int) -> float:
     """
     Compute a frame-level risk score from 0–100.

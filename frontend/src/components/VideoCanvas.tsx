@@ -19,15 +19,16 @@ const VideoCanvas = memo(({
     <div className="relative w-full h-full bg-black flex items-center justify-center overflow-hidden">
       
       {/* Background Frame Layer */}
-      <AnimatePresence mode="wait">
+      <AnimatePresence mode="sync">
         {frameB64 ? (
            <motion.img
              key="feed"
              src={`data:image/jpeg;base64,${frameB64}`}
-             initial={{ opacity: 0, filter: "blur(4px)" }}
-             animate={{ opacity: 1, filter: "blur(0px)" }}
-             transition={{ duration: 0.3 }}
+             initial={{ opacity: 0.85 }}
+             animate={{ opacity: 1 }}
+             transition={{ duration: 0.08 }}
              className="w-full h-full object-cover"
+             style={{ imageRendering: "auto" }}
              alt="Live Inference Feed"
            />
         ) : (
