@@ -63,7 +63,7 @@ async def stream_video(websocket: WebSocket, video_id: str):
             "message": f"Stream starting for video_id={video_id}..."
         })
         
-        async for frame_result in processor.process_video(video_path):
+        async for frame_result in processor.process_video(video_path, video_id=video_id):
             await manager.send(websocket, {
                 "type": "frame",
                 "payload": frame_result.model_dump()

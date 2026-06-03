@@ -11,9 +11,12 @@ import time
 import cv2
 import httpx
 import numpy as np
+import json
 
 from .risk_scorer import compute_risk_score, classify_risk, get_action_recommendation
 from ..models.schemas import FrameResult, Detection
+from .tracker import IoUTracker
+from ..database import async_session, HazardEventModel
 
 # To prevent overwhelming the browser, we use a smooth cinematic framerate.
 TARGET_FPS = 24
@@ -28,6 +31,7 @@ class FrameProcessor:
         self.model_service_url = model_service_url or "http://127.0.0.1:8001"
         self.model_service_url = self.model_service_url.replace("localhost", "127.0.0.1")
         self.infer_url = f"{self.model_service_url}/infer"
+        self.tracker = IoUTracker()
 
     async def _infer_frame(self, client: httpx.AsyncClient, frame_bytes: bytes) -> list[Detection]:
         """Send JPEG payload to the standalone YOLO Model Service.
@@ -85,8 +89,9 @@ class FrameProcessor:
             # Draw bounding box — 2px with anti-aliased line cap
             cv2.rectangle(frame, (x1, y1), (x2, y2), box_color, 2, cv2.LINE_AA)
 
-            # Build label string with confidence shown as percentage
-            label = f"{det.class_name}  {det.confidence * 100:.0f}%"
+            # Build label string with confidence shown as percentage and track_id if available
+            tid_str = f" ID:{det.track_id}" if getattr(det, 'track_id', None) is not None else ""
+            label = f"{det.class_name}{tid_str}  {det.confidence * 100:.0f}%"
             (tw, th), baseline = cv2.getTextSize(label, FONT, FONT_SCALE, THICKNESS)
 
             # Background rectangle with padding so letters aren't clipped
@@ -162,7 +167,7 @@ class FrameProcessor:
         _, annotated_buffer = cv2.imencode('.jpg', annotated_frame, [cv2.IMWRITE_JPEG_QUALITY, 92])
         return base64.b64encode(annotated_buffer).decode("utf-8")
 
-    async def process_video(self, video_path: str):
+    async def process_video(self, video_path: str, video_id: str = None):
         """
         Main Video Pipeline.
         Decodes -> Resizes -> Infers -> Scores -> Annotates -> Yields Base64 JSON
@@ -188,17 +193,40 @@ class FrameProcessor:
                 # 2. Parallelize model inference (Async network call to Model Service)
                 detections = await self._infer_frame(client, frame_bytes)
                 
-                # 3. Deterministic Risk Scoring + Action Recommendation
+                # Run Multi-Object Tracker (MOT)
                 det_dicts = [d.model_dump() for d in detections]
-                risk_score = compute_risk_score(det_dicts, sw, sh)
+                tracked_dicts = self.tracker.update(det_dicts)
+                detections = [Detection(**d) for d in tracked_dicts]
+                
+                # 3. Deterministic Risk Scoring + Action Recommendation
+                risk_score = compute_risk_score(tracked_dicts, sw, sh)
                 risk_level = classify_risk(risk_score)
-                recommendation = get_action_recommendation(det_dicts, risk_score)
+                recommendation = get_action_recommendation(tracked_dicts, risk_score)
                 
                 # 4 & 5. HUD rendering and Base64 compression
                 frame_b64 = await asyncio.to_thread(self._sync_annotate_and_encode, frame_small, detections, risk_score, risk_level)
                 
-                # 6. Build FrameResult payload
+                # Log hazard event to SQLite if risk is elevated (score > 60)
                 timestamp_ms = cap.get(cv2.CAP_PROP_POS_MSEC)
+                if risk_score > 60.0 and video_id:
+                    try:
+                        async with async_session() as db:
+                            # Dump detections as JSON for persistence
+                            detections_json = json.dumps(tracked_dicts)
+                            event = HazardEventModel(
+                                video_id=video_id,
+                                timestamp_ms=timestamp_ms,
+                                risk_score=risk_score,
+                                risk_level=risk_level,
+                                detections=detections_json,
+                                thumbnail_b64=frame_b64
+                            )
+                            db.add(event)
+                            await db.commit()
+                    except Exception as db_err:
+                        print(f"[Processor DB Error] Failed to log hazard event: {db_err}")
+                
+                # 6. Build FrameResult payload
                 result = FrameResult(
                     frame_id=frame_id,
                     timestamp_ms=timestamp_ms,

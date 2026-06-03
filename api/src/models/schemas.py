@@ -27,6 +27,7 @@ class Detection(BaseModel):
     class_name:  str   = Field(..., description="Human-readable class name")
     confidence:  float = Field(..., ge=0.0, le=1.0)
     bbox:        list[float] = Field(..., description="[x1, y1, x2, y2] in pixel coords")
+    track_id:    Optional[int] = Field(None, description="Unique tracking identifier across frames")
 
 
 # ============================================================

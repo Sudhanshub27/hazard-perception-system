@@ -25,6 +25,13 @@ app.include_router(video.router)
 app.include_router(stream.router)
 app.include_router(events.router)
 
+@app.on_event("startup")
+async def startup_event():
+    from .database import engine, Base
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    print("[API Startup] Persistent SQLite database tables initialized successfully.")
+
 @app.get("/health", tags=["ops"])
 async def health():
     return {"status": "ok", "service": "api"}
