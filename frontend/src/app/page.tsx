@@ -13,7 +13,7 @@ import HazardLog from "../components/HazardLog";
 const FADE_UP = {
   hidden: { opacity: 0, y: 30 },
   show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 100, damping: 20 } }
-};
+} as const;
 
 export default function Dashboard() {
   const [streamInfo, setStreamInfo] = useState<{ frameId: number, timestampMs: number } | null>(null);
@@ -140,7 +140,7 @@ export default function Dashboard() {
         {/* Soft Upload Dropzone */}
         {!isUploading && status !== 'Live' && (
           <motion.div 
-            {...getRootProps()}
+            {...(getRootProps() as any)}
             whileHover={{ scale: 1.02, y: -2 }}
             whileTap={{ scale: 0.98 }}
             className={`px-5 py-2.5 rounded-xl cursor-pointer transition-colors shadow-soft border flex items-center space-x-2 text-sm font-medium
