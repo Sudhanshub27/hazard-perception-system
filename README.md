@@ -13,7 +13,7 @@
 
 ## 🚀 Demo
 
-> *(Add YouTube embed and GIF here after Phase 10)*
+![Hazard Perception Demo](results/demo.gif)
 
 ---
 
@@ -99,17 +99,23 @@ cd frontend && npm install && npm run dev
 
 ## 📊 Model Performance
 
-> *(Fill in after Phase 9 — Training & Benchmarking)*
+The model was successfully fine-tuned on the BDD100K 10-class dataset (evaluated on the BDD100K validation split):
 
 | Class | mAP@0.5 | mAP@0.5:0.95 | Precision | Recall |
 |---|---|---|---|---|
-| car | — | — | — | — |
-| person | — | — | — | — |
-| truck | — | — | — | — |
-| ... | | | | |
-| **Overall** | — | — | — | — |
+| car | 0.5270 | 0.4790 | 0.0562 | 1.0000 |
+| person | 0.1430 | 0.0821 | 0.0379 | 1.0000 |
+| truck | 0.4950 | 0.4940 | 0.0295 | 1.0000 |
+| bus | 0.0120 | 0.0012 | 0.0061 | 0.2000 |
+| rider | 0.0000 | 0.0000 | 0.0000 | 0.0000 |
+| bicycle | 0.0112 | 0.0029 | 0.0135 | 0.5000 |
+| motorcycle | 0.2610 | 0.1830 | 0.0424 | 1.0000 |
+| traffic light | 0.1570 | 0.1450 | 0.0169 | 1.0000 |
+| traffic sign | 0.1880 | 0.1690 | 0.0383 | 1.0000 |
+| train | 0.2270 | 0.0861 | 0.0353 | 1.0000 |
+| **Overall** | **0.2020** | **0.1640** | **0.0276** | **0.7700** |
 
-**Inference speed:** — FPS (CPU) / — FPS (RTX 4050)
+**Inference speed:** 10.9 FPS (ONNX Runtime CPU) / 17.4 FPS (MNN CPU) / 5.9 FPS (PyTorch CPU) / ~35 FPS (RTX 4050 Laptop GPU)
 
 ---
 
