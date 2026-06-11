@@ -19,7 +19,7 @@ const StatsPanel = memo(({ objects }: { objects: any[] }) => {
          </div>
       </div>
 
-      <div className="flex-1 px-5 py-3 flex flex-col justify-center space-y-2">
+      <div className="flex-1 px-5 py-3 flex flex-col justify-center space-y-2 overflow-y-auto">
         
         <motion.div 
            whileHover={{ scale: 1.02 }} 

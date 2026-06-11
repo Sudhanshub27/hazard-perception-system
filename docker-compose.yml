@@ -84,11 +84,6 @@ services:
     container_name: hazard-frontend
     ports:
       - "3000:3000"
-    volumes:
-      - ./frontend/src:/app/src      # <--- MOUNT SOURCE FOR LIVE RELOAD
-      - ./frontend/public:/app/public
-    # OVERRIDE COMMAND FOR DEV-MODE (Hot Module Replacement)
-    command: ["npm", "run", "dev"]
     environment:
       # These are injected at build time for Next.js
       - NEXT_PUBLIC_API_URL=http://localhost:8000

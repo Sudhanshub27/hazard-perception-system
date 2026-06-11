@@ -3,6 +3,15 @@ import cv2
 import onnxruntime as ort
 import ast
 
+# Only allow driving-relevant classes through inference.
+# This filters out irrelevant COCO classes (e.g., "cell phone", "pizza")
+# when running with a generic pretrained model instead of a BDD100K fine-tuned one.
+ALLOWED_CLASSES = {
+    "person", "bicycle", "car", "motorcycle", "bus", "train", "truck",
+    "traffic light", "traffic sign", "stop sign", "fire hydrant",
+    "rider",  # BDD100K specific
+}
+
 class YOLOInference:
     def __init__(self, model_path: str):
         self.model_path = model_path
@@ -70,7 +79,7 @@ class YOLOInference:
         confidences = []
         class_ids = []
         
-        conf_threshold = 0.35
+        conf_threshold = 0.45  # Raised from 0.35 to reduce false positives with generic models
         iou_threshold = 0.45
 
         # Class confidence scores start from index 4 onwards
@@ -110,6 +119,10 @@ class YOLOInference:
                 
                 class_id = class_ids[idx]
                 class_name = self.names.get(class_id, f"object_{class_id}")
+                
+                # Filter: only allow driving-relevant classes
+                if class_name not in ALLOWED_CLASSES:
+                    continue
                 
                 detections.append({
                     "class_id": class_id,
