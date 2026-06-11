@@ -112,6 +112,65 @@ class FrameProcessor:
 
         return frame
 
+    def _map_bbox(self, bbox: list[float], w_orig: int, h_orig: int) -> list[float]:
+        """
+        Map bounding box coordinates from 640x640 inference crop space
+        back to display frame (720x405) space.
+        """
+        x1_crop, y1_crop, x2_crop, y2_crop = bbox
+        
+        # 1. Infer crop parameters (from _sync_read_and_prepare)
+        sq = min(h_orig, w_orig, INFER_SIZE)
+        cx, cy = w_orig // 2, h_orig // 2
+        x0 = cx - sq // 2
+        y0 = cy - sq // 2
+        
+        # Map crop back to original resolution space
+        x1_orig = x0 + x1_crop * (sq / INFER_SIZE)
+        y1_orig = y0 + y1_crop * (sq / INFER_SIZE)
+        x2_orig = x0 + x2_crop * (sq / INFER_SIZE)
+        y2_orig = y0 + y2_crop * (sq / INFER_SIZE)
+        
+        # 2. Display frame crop parameters (from _sync_read_and_prepare)
+        target_ratio = 16.0 / 9.0
+        current_ratio = w_orig / h_orig
+        
+        if current_ratio > target_ratio:
+            display_w = h_orig * target_ratio
+            display_h = h_orig
+            display_x0 = (w_orig - display_w) // 2
+            display_y0 = 0
+        else:
+            display_w = w_orig
+            display_h = w_orig / target_ratio
+            display_x0 = 0
+            display_y0 = (h_orig - display_h) // 2
+            
+        # Map original to display crop space
+        x1_disp_crop = x1_orig - display_x0
+        y1_disp_crop = y1_orig - display_y0
+        x2_disp_crop = x2_orig - display_x0
+        y2_disp_crop = y2_orig - display_y0
+        
+        # 3. Display frame resize parameters
+        scale_x = DISPLAY_WIDTH / display_w
+        scale_y = (DISPLAY_WIDTH / target_ratio) / display_h
+        
+        # Final display space coordinates
+        x1_final = x1_disp_crop * scale_x
+        y1_final = y1_disp_crop * scale_y
+        x2_final = x2_disp_crop * scale_x
+        y2_final = y2_disp_crop * scale_y
+        
+        # Clamp to display boundaries
+        display_height = int(DISPLAY_WIDTH / target_ratio)
+        x1_final = max(0.0, min(float(DISPLAY_WIDTH), x1_final))
+        y1_final = max(0.0, min(float(display_height), y1_final))
+        x2_final = max(0.0, min(float(DISPLAY_WIDTH), x2_final))
+        y2_final = max(0.0, min(float(display_height), y2_final))
+        
+        return [x1_final, y1_final, x2_final, y2_final]
+
     def _sync_read_and_prepare(self, cap: cv2.VideoCapture) -> tuple[bool, bytes | None, np.ndarray | None, int, int]:
         """Synchronous CPU-bound wrapper for reading and scaling the frame.
         
@@ -155,7 +214,7 @@ class FrameProcessor:
 
         # Encode infer frame at high quality (85) — better feature preservation for model
         _, buffer = cv2.imencode('.jpg', infer_resized, [cv2.IMWRITE_JPEG_QUALITY, 85])
-        return True, buffer.tobytes(), frame_display, sw, sh
+        return True, buffer.tobytes(), frame_display, w, h
 
     def _sync_annotate_and_encode(self, frame_small: np.ndarray, detections: list[Detection], risk_score: float, risk_level: str) -> str:
         """Synchronous CPU-bound wrapper for drawing the HUD and compressing to base64.
@@ -180,18 +239,26 @@ class FrameProcessor:
         cap = cv2.VideoCapture(video_path)
         frame_id = 0
         
+        target_ratio = 16.0 / 9.0
+        sw = DISPLAY_WIDTH
+        sh = int(DISPLAY_WIDTH / target_ratio)
+        
         async with httpx.AsyncClient(trust_env=False) as client:
             while cap.isOpened():
                 loop_start = time.time()
                 
                 # Safe async offload of heavy I/O and cv2 array math
-                success, frame_bytes, frame_small, sw, sh = await asyncio.to_thread(self._sync_read_and_prepare, cap)
+                success, frame_bytes, frame_small, w_orig, h_orig = await asyncio.to_thread(self._sync_read_and_prepare, cap)
                 
                 if not success or frame_bytes is None or frame_small is None:
                     break
                 
                 # 2. Parallelize model inference (Async network call to Model Service)
                 detections = await self._infer_frame(client, frame_bytes)
+                
+                # Map coordinates from 640x640 inference crop space back to display frame (720x405) space
+                for det in detections:
+                    det.bbox = self._map_bbox(det.bbox, w_orig, h_orig)
                 
                 # Run Multi-Object Tracker (MOT)
                 det_dicts = [d.model_dump() for d in detections]
@@ -243,5 +310,5 @@ class FrameProcessor:
                 processing_time = time.time() - loop_start
                 sleep_time = max(0.0, FRAME_INTERVAL - processing_time)
                 await asyncio.sleep(sleep_time)
-
+ 
         cap.release()
